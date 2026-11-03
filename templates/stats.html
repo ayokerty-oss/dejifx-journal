@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Stats — DejiFX{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Performance Stats</h1>
+</div>
+<div id="loading" style="color:var(--muted);text-align:center;padding:40px;">Loading stats…</div>
+<div id="stats-content" style="display:none;">
+  <div class="stat-grid" id="stat-grid"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="card"><h2>Win Rate by Pair</h2><canvas id="pairChart"></canvas></div>
+    <div class="card"><h2>Win Rate by Session</h2><canvas id="sessionChart"></canvas></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div class="card"><h2>Win Rate by Day</h2><canvas id="dayChart"></canvas></div>
+    <div class="card"><h2>Rules vs No Rules</h2><canvas id="rulesChart"></canvas></div>
+  </div>
+  <div class="card" style="margin-bottom:16px;"><h2>Cumulative R (equity curve)</h2><canvas id="cumChart"></canvas></div>
+  <div class="card"><h2>Top Mistakes</h2><div id="mistakes-list"></div></div>
+</div>
+<div id="no-data" style="display:none;" class="card">
+  <div style="text-align:center;padding:40px;color:var(--muted);">No completed trades yet. Stats will appear once trades are resolved.</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const C = { green:'#3fb950', red:'#f85149', blue:'#58a6ff', yellow:'#d29922', purple:'#bc8cff', orange:'#ffa657', muted:'#8b949e' };
+Chart.defaults.color = C.muted;
+Chart.defaults.borderColor = '#30363d';
+
+function barChart(id, labels, data, colors) {
+  new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor: colors || data.map(v => v >= 50 ? C.green+'88' : C.red+'88'), borderColor: colors || data.map(v => v >= 50 ? C.green : C.red), borderWidth: 1 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { max: 100, ticks: { callback: v => v + '%' } }, x: { grid: { color: '#30363d' } } }, responsive: true }
+  });
+}
+
+fetch('/api/stats').then(r => r.json()).then(d => {
+  document.getElementById('loading').style.display = 'none';
+  if (!d.total) { document.getElementById('no-data').style.display = 'block'; return; }
+  document.getElementById('stats-content').style.display = 'block';
+
+  const grid = document.getElementById('stat-grid');
+  const stat = (label, value, color) => `<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value" style="color:${color||'var(--text)'}">${value}</div></div>`;
+  grid.innerHTML = stat('Total Trades', d.total) + stat('Win Rate', d.win_rate + '%', d.win_rate >= 50 ? C.green : C.red) + stat('Wins', d.wins, C.green) + stat('Losses', d.losses, C.red) + stat('Breakeven', d.breakeven, C.yellow) + stat('Avg R:R', d.avg_rr ?? '—', C.blue);
+
+  barChart('pairChart', Object.keys(d.pair_wr), Object.values(d.pair_wr));
+  barChart('sessionChart', Object.keys(d.session_wr), Object.values(d.session_wr));
+  const dayOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  const dKeys = dayOrder.filter(k => d.day_wr[k] !== undefined);
+  barChart('dayChart', dKeys, dKeys.map(k => d.day_wr[k]));
+
+  const rw = d.rule_wr ?? 0, nrw = d.no_rule_wr ?? 0;
+  new Chart(document.getElementById('rulesChart'), {
+    type: 'bar',
+    data: { labels: ['Followed Rules', 'Broke Rules'], datasets: [{ data: [rw, nrw], backgroundColor: [C.green+'88', C.red+'88'], borderColor: [C.green, C.red], borderWidth: 1 }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { max: 100, ticks: { callback: v => v + '%' } } }, responsive: true }
+  });
+
+  if (d.cum_r && d.cum_r.length) {
+    new Chart(document.getElementById('cumChart'), {
+      type: 'line',
+      data: { labels: d.cum_r.map(r => r.date), datasets: [{ data: d.cum_r.map(r => r.cumR), borderColor: C.blue, backgroundColor: C.blue + '22', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: d.cum_r.map(r => r.cumR >= 0 ? C.green : C.red) }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => v + 'R' } } }, responsive: true }
+    });
+  }
+
+  const ml = document.getElementById('mistakes-list');
+  const sorted = Object.entries(d.mistake_count).sort((a,b) => b[1]-a[1]);
+  if (sorted.length) {
+    ml.innerHTML = sorted.map(([m,c]) => `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);"><span style="color:var(--orange);">${m.replace(/_/g,' ')}</span><span style="margin-left:auto;color:var(--muted);">${c}x</span></div>`).join('');
+  } else {
+    ml.innerHTML = '<div style="color:var(--muted);">No mistakes tagged — keep it up!</div>';
+  }
+});
+</script>
+{% endblock %}
