@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Trade #{{ trade.id }} — DejiFX{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ trade.pair }} — {{ trade.date }}
+      <span class="badge badge-{{ trade.outcome }}" style="font-size:13px;margin-left:8px;">{{ trade.outcome|upper }}</span>
+      {% if trade.source == 'bot' %}<span class="badge badge-bot" style="margin-left:4px;">BOT</span>{% endif %}
+    </h1>
+    <div style="color:var(--muted);font-size:12px;">{{ trade.session }} session · {{ trade.day_of_week }} · #{{ trade.id }}</div>
+  </div>
+  <a href="/" class="btn">← Back</a>
+</div>
+
+{% if trade.outcome == 'pending' %}
+<div style="background:#12142a;border:1px solid var(--purple);border-radius:8px;padding:16px;margin-bottom:20px;">
+  <h2 style="color:var(--purple);margin-bottom:12px;">🤖 Update Trade Outcome</h2>
+  <form method="POST" action="/trade/{{ trade.id }}/update">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Outcome *</label>
+        <select name="outcome" required>
+          {% for o in outcomes %}
+          <option value="{{ o }}" {% if o == trade.outcome %}selected{% endif %}>{{ o|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Actual R:R</label>
+        <input type="number" step="0.01" name="rr_actual" value="{{ trade.rr_actual or '' }}" placeholder="e.g. 2.5">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Pips</label>
+        <input type="number" step="0.1" name="pips" value="{{ trade.pips or '' }}">
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;padding-top:20px;">
+        <input type="checkbox" name="followed_rules" id="fr" {% if trade.followed_rules %}checked{% endif %} style="width:auto;">
+        <label for="fr" style="margin:0;color:var(--text);">Followed rules?</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Mistake Tags</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+        {% for m in mistakes %}
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text);cursor:pointer;">
+          <input type="checkbox" name="mistake_tags" value="{{ m }}" {% if m in (trade.mistake_tags or []) %}checked{% endif %} style="width:auto;">
+          {{ m.replace('_',' ') }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes">{{ trade.notes or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Outcome ✓</button>
+  </form>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+  <div class="card">
+    <h2>Trade Details</h2>
+    <table>
+      <tr><td style="color:var(--muted);width:40%;">Pair</td><td><strong>{{ trade.pair }}</strong></td></tr>
+      <tr><td style="color:var(--muted);">Bias</td><td style="color:{% if trade.htf_bias == 'bullish' %}var(--green){% else %}var(--red){% endif %};">{{ trade.htf_bias|capitalize }}</td></tr>
+      <tr><td style="color:var(--muted);">Session</td><td>{{ trade.session }}</td></tr>
+      <tr><td style="color:var(--muted);">LQ Swept</td><td>{{ trade.lq_swept }}</td></tr>
+      <tr><td style="color:var(--muted);">Setup</td><td>{{ trade.setup_type }}</td></tr>
+      <tr><td style="color:var(--muted);">Trigger</td><td>{{ trade.entry_trigger }}</td></tr>
+      <tr><td style="color:var(--muted);">TF</td><td>{{ trade.entry_tf }}</td></tr>
+      <tr><td style="color:var(--muted);">Entry Time</td><td>{{ trade.entry_time_nyt or '—' }} NYT</td></tr>
+      <tr><td style="color:var(--muted);">Stop</td><td>{{ trade.stop_placement }}</td></tr>
+      <tr><td style="color:var(--muted);">Target</td><td>{{ trade.target }}</td></tr>
+      <tr><td style="color:var(--muted);">News</td><td>{% if trade.news_present %}⚠ {{ trade.news_name or 'Yes' }}{% else %}—{% endif %}</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Result</h2>
+    <table>
+      <tr><td style="color:var(--muted);width:40%;">Outcome</td><td><span class="badge badge-{{ trade.outcome }}">{{ trade.outcome|upper }}</span></td></tr>
+      <tr><td style="color:var(--muted);">R:R Planned</td><td>{{ trade.rr_planned or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">R:R Actual</td><td>{{ trade.rr_actual or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">Pips</td><td>{{ trade.pips or '—' }}</td></tr>
+      <tr><td style="color:var(--muted);">Rules Followed</td><td>{% if trade.followed_rules %}✓ Yes{% else %}✗ No{% endif %}</td></tr>
+      <tr><td style="color:var(--muted);">Source</td><td>{{ trade.source or 'manual' }}</td></tr>
+      <tr>
+        <td style="color:var(--muted);">Mistakes</td>
+        <td>
+          {% if trade.mistake_tags %}
+            {% for m in trade.mistake_tags %}<span class="badge" style="background:#2a1a0d;color:var(--orange);margin:2px;">{{ m.replace('_',' ') }}</span>{% endfor %}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    </table>
+    {% if trade.notes %}
+    <div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:6px;font-size:12px;color:var(--muted);white-space:pre-line;">{{ trade.notes }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if trade.outcome != 'pending' %}
+<div style="display:flex;gap:8px;margin-top:16px;">
+  <a href="/trade/{{ trade.id }}" style="margin-left:auto;" class="btn btn-sm">Edit</a>
+  <form method="POST" action="/trade/{{ trade.id }}/delete" onsubmit="return confirm('Delete this trade?');" style="display:inline;">
+    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+  </form>
+</div>
+
+<div style="margin-top:20px;" class="card">
+  <h2>Edit Trade</h2>
+  <form method="POST" action="/trade/{{ trade.id }}/update">
+    <div class="form-col3">
+      <div class="form-group">
+        <label>Outcome</label>
+        <select name="outcome">
+          {% for o in outcomes %}
+          <option value="{{ o }}" {% if o == trade.outcome %}selected{% endif %}>{{ o|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>R:R Actual</label>
+        <input type="number" step="0.01" name="rr_actual" value="{{ trade.rr_actual or '' }}">
+      </div>
+      <div class="form-group">
+        <label>Pips</label>
+        <input type="number" step="0.1" name="pips" value="{{ trade.pips or '' }}">
+      </div>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" name="followed_rules" id="fr2" {% if trade.followed_rules %}checked{% endif %} style="width:auto;">
+      <label for="fr2" style="margin:0;color:var(--text);">Followed rules?</label>
+    </div>
+    <div class="form-group">
+      <label>Mistake Tags</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+        {% for m in mistakes %}
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text);cursor:pointer;">
+          <input type="checkbox" name="mistake_tags" value="{{ m }}" {% if m in (trade.mistake_tags or []) %}checked{% endif %} style="width:auto;">
+          {{ m.replace('_',' ') }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes">{{ trade.notes or '' }}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
