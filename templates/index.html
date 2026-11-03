@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}DejiFX Journal — Trades{% endblock %}
+{% block content %}
+{% set pending_trades = trades | selectattr("outcome", "equalto", "pending") | list %}
+{% set done_trades = trades | rejectattr("outcome", "equalto", "pending") | list %}
+
+{% if pending_trades %}
+<div class="pending-banner">
+  <span>🤖</span>
+  <div>
+    <strong><span class="pending-count">{{ pending_trades|length }}</span> pending trade{{ 's' if pending_trades|length != 1 else '' }}</strong> auto-logged by bot — click to update outcome
+  </div>
+</div>
+{% endif %}
+
+<div class="page-header">
+  <div>
+    <h1>Trade Journal</h1>
+    <div style="color:var(--muted);font-size:12px;">{{ trades|length }} total trades</div>
+  </div>
+  <a href="/add" class="btn btn-primary">+ Log Trade</a>
+</div>
+
+{% if pending_trades %}
+<div style="margin-bottom:24px;">
+  <h2 style="color:var(--purple);">🤖 Bot-Logged (Pending)</h2>
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Pair</th>
+          <th>Session</th>
+          <th>Direction</th>
+          <th>Setup</th>
+          <th>Notes</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in pending_trades %}
+        <tr>
+          <td>{{ t.date }}<br><span style="color:var(--muted);font-size:11px;">{{ t.day_of_week }}</span></td>
+          <td><strong>{{ t.pair }}</strong></td>
+          <td>{{ t.session }}</td>
+          <td>
+            {% if t.htf_bias == 'bullish' %}
+              <span style="color:var(--green);">▲ BUY</span>
+            {% else %}
+              <span style="color:var(--red);">▼ SELL</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;">{{ t.lq_swept }} sweep<br>{{ t.entry_trigger }}</td>
+          <td style="font-size:11px;color:var(--muted);max-width:200px;">{{ (t.notes or '')[:80] }}{% if (t.notes or '')|length > 80 %}…{% endif %}</td>
+          <td>
+            <a href="/trade/{{ t.id }}" class="btn btn-primary btn-sm">Update Outcome</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if done_trades %}
+<div>
+  <h2>All Trades</h2>
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Pair</th>
+          <th>Session</th>
+          <th>Setup</th>
+          <th>Outcome</th>
+          <th>R:R</th>
+          <th>Source</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in done_trades %}
+        <tr>
+          <td>{{ t.date }}<br><span style="color:var(--muted);font-size:11px;">{{ t.day_of_week }}</span></td>
+          <td><strong>{{ t.pair }}</strong></td>
+          <td>{{ t.session }}</td>
+          <td style="font-size:12px;">{{ t.setup_type }}<br>{{ t.entry_trigger }}</td>
+          <td><span class="badge badge-{{ t.outcome }}">{{ t.outcome|upper }}</span></td>
+          <td>
+            {% if t.rr_actual %}
+              <span style="color:{% if t.outcome == 'profit' %}var(--green){% elif t.outcome == 'loss' %}var(--red){% else %}var(--muted){% endif %};">{{ t.rr_actual }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if t.source == 'bot' %}<span class="badge badge-bot">BOT</span>{% else %}<span style="color:var(--muted);font-size:11px;">manual</span>{% endif %}
+          </td>
+          <td><a href="/trade/{{ t.id }}" class="btn btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if not trades %}
+<div class="card" style="text-align:center;padding:40px;">
+  <div style="font-size:32px;margin-bottom:12px;">📊</div>
+  <div style="color:var(--muted);">No trades yet. The bot will auto-log here when it fires, or <a href="/add" style="color:var(--blue);">add one manually</a>.</div>
+</div>
+{% endif %}
+{% endblock %}
